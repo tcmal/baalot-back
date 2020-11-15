@@ -1,2 +1,5 @@
 build/
 .clang-format
+.env.yaml
+.env
+node_modules

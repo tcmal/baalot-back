@@ -1,0 +1,6 @@
+#!/bin/bash
+cp package.json build/
+npm run compile
+gcloud functions deploy --runtime nodejs10 --trigger-http --source ./build --env-vars-file ./env.yaml createPoll
+gcloud functions deploy --runtime nodejs10 --trigger-http --source ./build --env-vars-file ./env.yaml addVote
+gcloud functions deploy --runtime nodejs10 --trigger-http --source ./build --env-vars-file ./env.yaml getResults

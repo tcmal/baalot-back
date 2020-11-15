@@ -1,0 +1,47 @@
+swagger: '2.0'
+info:
+  title: Baalot API
+  description: Sample API on Cloud Endpoints with a Google Cloud Functions backend
+  version: 1.0.0
+host: baalot-api-h5pfg5n5hq-nw.a.run.app
+schemes:
+  - https
+produces:
+  - application/json
+paths:
+  /createPoll:
+    post:
+      summary: Create a new poll
+      operationId: createPoll
+      x-google-backend:
+        address: https://europe-west1-defhacks-295614.cloudfunctions.net/createPoll
+        protocol: h2
+      responses:
+        '200':
+          description: A successful response
+          schema:
+            type: string
+  /addVote:
+    post:
+      summary: Add a vote to a poll
+      operationId: addVote
+      x-google-backend:
+        address: https://europe-west1-defhacks-295614.cloudfunctions.net/addVote
+        protocol: h2
+      responses:
+        '200':
+          description: A successful response
+          schema:
+            type: string
+  /getResults:
+    post:
+      summary: Get results for a poll, closing it in the process
+      operationId: getResults
+      x-google-backend:
+        address: https://europe-west1-defhacks-295614.cloudfunctions.net/getResults
+        protocol: h2
+      responses:
+        '200':
+          description: A successful response
+          schema:
+            type: string

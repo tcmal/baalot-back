@@ -212,7 +212,7 @@ export const getResults = async (req: Request, res: Response) => {
       counts,
     });
   } else {
-    let file = bucket.file(ending.uuid + ".txt");
+    let file = bucket().file(ending.uuid + ".txt");
     let stream = file.createWriteStream();
     let count = 0;
 

@@ -33,15 +33,16 @@ export const pollCreationValidationRules = {
   question: 'required|min:8|max:500',
   freeResponse: 'required|boolean',
   responses: 'required_if:freeResponse,false|array',
+  'responses.*': 'string|required|max:250',
 };
 
 export interface VoteCreation {
   pollJwt: string;
   customResponse?: string;
-  response_idx?: number;
+  responseIdx?: number;
 }
 export const voteCreationValidationRules = {
   pollJwt: 'required',
-  customResponse: 'required_without:response_idx|min:8|max:250',
-  response_idx: 'required_without:customResponse|integer',
+  customResponse: 'required_without:responseIdx|max:250',
+  responseIdx: 'required_without:customResponse|integer',
 };

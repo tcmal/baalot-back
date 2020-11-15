@@ -9,7 +9,7 @@ export function validatorErrorsToJson(
 ) {
   // TODO
   const obj = {
-    errors: validator.errors,
+    errors: validator.errors.errors,
   };
 
   sendJson(res, 400, obj);

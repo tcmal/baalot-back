@@ -1,9 +1,12 @@
 import { promises as fs } from 'fs';
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
+import { Storage } from '@google-cloud/storage';
 import { logger } from './logging';
 
 export const GCP_PROJECT_NAME = process.env.GCP_PROJECT || '';
+export const STORAGE_BUCKET_NAME = process.env.STORAGE_BUCKET_NAME || '';
 
+export const bucket = new Storage().bucket(STORAGE_BUCKET_NAME);
 const secretClient = new SecretManagerServiceClient();
 
 // TODO: Cache things in here

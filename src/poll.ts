@@ -3,8 +3,9 @@ import { Client } from 'cassandra-driver';
 import Validator from 'validatorjs';
 import { v4 as uuid } from 'uuid';
 import { sign, verify } from 'jsonwebtoken';
+import { once } from 'events';
 
-import { getJWTSecret } from './config';
+import { getJWTSecret, bucket, STORAGE_BUCKET_NAME } from './config';
 import { validatorErrorsToJson, okJson } from './utils';
 import { getClient } from './db';
 import {
@@ -97,23 +98,32 @@ export const getResults = async (req: Request, res: Response) => {
   const body = req.body as { endJwt: string };
 
   // Make sure they're allowed to close the poll
-  const ending = (await verify(
-    req.body.endJwt,
-    await getJWTSecret()
-  )) as object;
+  let payload: any = {};
+  try {
+    payload = (await verify(
+      req.body.endJwt,
+      await getJWTSecret()
+    )) as {uuid?: string, started?: string};
+  } catch (_) {}
+  
   if (
-    ending == null ||
-    !('uuid' in ending && 'started' in ending) ||
-    new Date(ending.started) >= new Date()
+    payload == null ||
+    !('uuid' in payload && 'started' in payload) ||
+    new Date(payload.started || "") >= new Date()
   ) {
     validator.errors.add('endJwt', 'Invalid');
     return validatorErrorsToJson(res, validator);
   }
 
+  let ending: PollEndJWT = {
+    uuid: payload.uuid,
+    started: new Date(payload.started || ""),
+  } as PollEndJWT;
+
   // Get the poll meta object
   const client = await getClient();
   const q = await client.execute(
-    'SELECT uuid, ended, question FROM poll_meta WHERE uuid = ?',
+    'SELECT uuid, ended, question, free_response FROM poll_meta WHERE uuid = ?',
     [ending.uuid],
     { prepare: true }
   );
@@ -122,7 +132,7 @@ export const getResults = async (req: Request, res: Response) => {
     validator.errors.add('uuid', 'No poll with that UUID');
     return validatorErrorsToJson(res, validator);
   }
-
+  q.rows[0].freeResponse = q.rows[0].free_response;
   const meta = (q.rows[0] as unknown) as PollMeta;
   const poll: PollJWT = {
     uuid: ending.uuid,
@@ -149,7 +159,7 @@ export const getResults = async (req: Request, res: Response) => {
         [poll.uuid],
         { prepare: true },
         (_: number, x: object) => {
-          const resp = x as { idx: string; response: string };
+          const resp = x as { idx: number; response: string };
           responsesObj[resp.idx] = resp.response;
         },
         (err, results) => {
@@ -167,17 +177,18 @@ export const getResults = async (req: Request, res: Response) => {
     poll.responses = responsesObj;
   }
 
-  let count = 0;
-  const counts: object = {};
   if (!poll.freeResponse) {
+    let count = 0;
+    const counts: any = {};
+
     // eachRow isn't properly async ready
     await new Promise((resolve, reject) => {
       client.eachRow(
         'SELECT response_idx FROM vote WHERE poll_uuid = ?',
         [poll.uuid],
         { prepare: true },
-        (_: number, x: object) => {
-          const voteFor = x.response_idx;
+        (_: number, x: any) => {
+          const voteFor = (x as {response_idx: number}).response_idx;
 
           counts[voteFor] = (counts[voteFor] || 0) + 1;
           count++;
@@ -193,14 +204,47 @@ export const getResults = async (req: Request, res: Response) => {
         }
       );
     });
+
+    // Get the results
+    return okJson(res, {
+      poll,
+      count,
+      counts,
+    });
   } else {
-    // TODO
+    let file = bucket.file(ending.uuid + ".txt");
+    let stream = file.createWriteStream();
+    let count = 0;
+
+    await new Promise((resolve, reject) => {
+      client.eachRow(
+        'SELECT custom_response FROM vote WHERE poll_uuid = ?',
+        [poll.uuid],
+        { prepare: true },
+        (_: number, x: object) => {
+          let resp = (x as any).custom_response;
+          stream.write(resp + "\n");
+          count++;
+        },
+        (err, results) => {
+          if (err) {
+            reject(err);
+          } else if (results.nextPage) {
+            results.nextPage();
+          } else {
+            resolve();
+          }
+        }
+      )
+    });
+
+    stream.end();
+    await once(stream, 'finish');
+    return okJson(res, {
+      poll,
+      count,
+      url: "https://storage.googleapis.com/" + STORAGE_BUCKET_NAME + "/" + ending.uuid + ".txt"
+    })
   }
 
-  // Get the results
-  return okJson(res, {
-    poll,
-    count,
-    counts,
-  });
 };

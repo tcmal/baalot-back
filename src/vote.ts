@@ -6,7 +6,7 @@ import { verify } from 'jsonwebtoken';
 
 import { getJWTSecret } from './config';
 import { validatorErrorsToJson, sendJson, okJson } from './utils';
-import db from './db';
+import { getClient } from './db';
 import { PollJWT, VoteCreation, voteCreationValidationRules } from './models';
 
 export const addVote = async (req: Request, res: Response) => {
@@ -21,7 +21,11 @@ export const addVote = async (req: Request, res: Response) => {
   const customResponse = 'customResponse' in body;
 
   // Get poll info
-  const payload = (await verify(body.poll_jwt, await getJWTSecret())) as object;
+  let payload = {}
+  try {
+    payload = await verify(body.pollJwt, await getJWTSecret()) as object;
+  } catch (_) {}
+  
   if (!payload || !('uuid' in payload)) {
     // Probably a user JWT or something else we signed
     return sendJson(res, 400, { msg: 'Invalid JWT' });
@@ -31,9 +35,9 @@ export const addVote = async (req: Request, res: Response) => {
   // Check they don't want to respond in a disallowed way
   if (
     customResponse !== poll.freeResponse ||
-    (customResponse && 'response_idx' in body) ||
+    (customResponse && 'responseIdx' in body) ||
     (!customResponse &&
-      (body.response_idx || 99999) >= (poll.responses || []).length)
+      (body.responseIdx || 99999) >= (poll.responses || []).length)
   ) {
     return sendJson(res, 400, {
       msg: 'Free response not allowed or invalid vote',
@@ -51,7 +55,7 @@ export const addVote = async (req: Request, res: Response) => {
   } else {
     await client.execute(
       'INSERT INTO vote (uuid, poll_uuid, response_idx) VALUES (uuid(), ?, ?)',
-      [poll.uuid, body.response_idx || 0],
+      [poll.uuid, body.responseIdx || 0],
       { prepare: true }
     );
   }
